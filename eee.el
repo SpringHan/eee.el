@@ -139,8 +139,8 @@ DESTINATION can be:
           (column (if (and (length> components 2) (ee-integer-p (nth 2 components)))
                     (string-to-number (nth 2 components)) nil)))
     (when (and (not (string-empty-p file)) (file-exists-p file))
-      (message "ee-jump got destination %s" destination)
-      (message "ee-jump jumping to: file:%s, [line:%s/page:%s], column:%s" file line pdf-page-num column)
+      ;; (message "ee-jump got destination %s" destination)
+      ;; (message "ee-jump jumping to: file:%s, [line:%s/page:%s], column:%s" file line pdf-page-num column)
       (find-file file)
       (when line
         (goto-line line)
@@ -190,7 +190,7 @@ DESTINATION can be:
                           command-and-args
                           ee-process-stdout-file))
           (process-callback (if callback
-                              (lambda(process)
+                                (lambda(process)
                                 (funcall callback ee-process-stdout-file))
                               #'ignore)))
     (ee-message "%s: %s" name full-command)
