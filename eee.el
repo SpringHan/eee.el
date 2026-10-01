@@ -24,7 +24,9 @@
        "--option=window.decorations=\\\"None\\\" --option=window.dimensions.columns=180 --option=window.dimensions.lines=50")
      ("kitty" . "--title ee-kitty")
      ("konsole" . "--hide-menubar")
-     ("ghostty" . "--title=ee-ghostty")
+     ("ghostty" . "--title=ee-ghostty --window-decoration=none")
+     ("foot" . "--title=ee-foot")
+     ("footclient" . "--title=ee-footclient")
      )
   "The terminal command options to use for ee-* commands."
   :type 'alist
@@ -56,25 +58,44 @@
     script-name
     (file-name-directory (expand-file-name eee--load-file-path))))
 
+;; (defun ee-start-external-terminal (name command callback)
+;;   "Start a process running COMMAND in an external terminal.
+;; The terminal emulator is specified in `ee-terminal-command'.
+;; See `ee-start-terminal-function' for the usage.
+;; "
+;;   (let* ((options (ee-get-terminal-options))
+;;           ;; TODO: sleep 1 is a workaround,
+;;           ;; should caught the error message
+;;           ;; and show it in Emacs's echo area
+;;           ;; errno 130 is indicates that a command or process was terminated by the user
+;;           (full-command (format "%s %s -e bash -c '%s || { [ $? -ne 130 ] && sleep 1; }'"
+;;                           ee-terminal-command
+;;                           options
+;;                           command))
+;;           (proc (progn
+;;                   (ee-message "ee-executing:\n%s" full-command)
+;;                   (start-process-shell-command name nil full-command) )))
+;;     (set-process-sentinel
+;;       proc
+;;       (lambda (p _m)
+;;         (unless (process-live-p p)
+;;           (ee-message "executing callback...")
+;;           (funcall callback p))))
+;;     proc))
+
 (defun ee-start-external-terminal (name command callback)
-  "Start a process running COMMAND in an external terminal.
-The terminal emulator is specified in `ee-terminal-command'.
-See `ee-start-terminal-function' for the usage.
-"
-  (let* ((options (ee-get-terminal-options))
-          (full-command (format "%s %s -e bash -c '%s'"
-                          ee-terminal-command
-                          options
-                          command))
-          (proc (progn
-                  (ee-message "ee-executing:\n%s" full-command)
-                  (start-process-shell-command name nil full-command) )))
-    (set-process-sentinel
-      proc
-      (lambda (p _m)
-        (unless (process-live-p p)
-          (funcall callback p))))
-    proc))
+  "Start a process running COMMAND in an external terminal."
+  (let* ((options (split-string (ee-get-terminal-options)))
+         (bash-command (format "%s || { [ $? -ne 130 ] && sleep 1; }" command))
+         (args (append options (list "-e" "bash" "-c" bash-command))))
+    (ee-message "ee-executing: %s %s"
+                ee-terminal-command
+                (string-join args " "))
+    (apply #'async-start-process
+           name
+           ee-terminal-command
+           callback
+           args)))
 
 (defcustom ee-start-terminal-function #'ee-start-external-terminal
   "Function used to start the terminal.
@@ -149,18 +170,21 @@ DESTINATION can be:
           (recenter)))
       (when pdf-page-num
         (pdf-view-goto-page pdf-page-num))
+      (select-frame-set-input-focus (selected-frame))
       (ignore-errors
-        (jit-lock-fontify-now))
+        (jit-lock-fontify-now (window-start) (window-end)))
       ))
   )
 
 ;; destination-file is a temporary file, it's content is the desitination we want to jump
-(defun ee-jump-from(destination-file)
-  (let* ((destination (shell-command-to-string
-                        (format "cat %s" destination-file)))
-          (destination (string-trim destination)))
-    (unless (string-empty-p destination)
-      (ee-jump destination))))
+(defun ee-jump-from (destination-file)
+  (when (file-exists-p destination-file)
+    (let ((destination (string-trim
+                         (with-temp-buffer
+                           (insert-file-contents destination-file)
+                           (buffer-string)))))
+      (unless (string-empty-p destination)
+        (ee-jump destination)))))
 
 (defun ee-join-args(args)
   (string-join
@@ -194,6 +218,7 @@ DESTINATION can be:
                                 (funcall callback ee-process-stdout-file))
                               #'ignore)))
     (ee-message "%s: %s" name full-command)
+    (discard-input)
     (ee-start-process-shell-command-in-terminal
       name
       full-command
@@ -262,6 +287,7 @@ CALLBACK is an optional callback to be called after the script runs."
 ;;;###autoload
 (ee-define "ee-htop" default-directory "htop;" nil ignore)
 (ee-define "ee-btop" default-directory "btop;" nil ignore)
+(ee-define "ee-btm" default-directory "btm -b --hide_avg_cpu;" nil ignore)
 
 ;; Commands with optional arguments
 ;;;###autoload
@@ -323,7 +349,7 @@ CALLBACK is an optional callback to be called after the script runs."
 
 ;;;###autoload
 (ee-define "ee-project-switch" default-directory
-  "fd --color=always --type dir --exact-depth 3 \"\"  ~/Projects | fzf --ansi --exact --style full --layout reverse --preview \"eza --tree -L 3 --color always --icons always {}\" "
+  "fd --color=always --type dir --exact-depth 3 \"\"  ~/Projects | fzf --ansi --exact --style full --cycle --layout reverse --preview \"eza --tree -L 3 --color always --icons always {}\" "
   nil ee-jump-from)
 
 (defvar ee-keymap (make-sparse-keymap)
