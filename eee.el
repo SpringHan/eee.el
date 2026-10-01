@@ -127,7 +127,7 @@ NAME is passed to `ee-start-terminal-function'."
   (let ((project-dir-command
           (format  "git rev-parse --show-toplevel 2> /dev/null || echo -n %s"
             default-directory)))
-    (ee--normalize-path (or (when-let* (project (project-current))
+    (ee--normalize-path (or (when-let* ((project (project-current)))
                               (project-root project))
                           (shell-command-to-string project-dir-command) ))))
 
